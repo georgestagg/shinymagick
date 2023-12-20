@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: any::shinylive
+
+      - name: Export to Shinylive static site
+        run: shinylive::export(".", ".site")
+        shell: Rscript {0}
+
+# This next step may be removed once a new webR is released and Shinylive has
+# been updated so that the bundled assets contain a newer webR version.
+      - name: "Temporary: Download latest webR"
+        run: |
+          curl https://webr.r-wasm.org/latest/libRblas.so -o .site/shinylive/webr/libRblas.so
+          curl https://webr.r-wasm.org/latest/libRlapack.so -o .site/shinylive/webr/libRlapack.so
+          curl https://webr.r-wasm.org/latest/R.bin.data -o .site/shinylive/webr/R.bin.data
+          curl https://webr.r-wasm.org/latest/R.bin.js -o .site/shinylive/webr/R.bin.js
+          curl https://webr.r-wasm.org/latest/R.bin.wasm -o .site/shinylive/webr/R.bin.wasm
+          curl https://webr.r-wasm.org/latest/webr-worker.js -o .site/shinylive/webr/webr-worker.js
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: '.site'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v3
